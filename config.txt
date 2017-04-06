@@ -1,0 +1,14 @@
+filename_video			= D:/Dataset/VehicleTracking/resources/videos_HD/DJI_0002.MOV
+filename_video_SRT		= D:/Dataset/VehicleTracking/resources/videos_HD/DJI_0002.SRT
+filename_map			= D:/Dataset/VehicleTracking/MapTileDownload/OutPut/161020230531_L19/161020230531.png
+filename_map_marked		= D:/Dataset/VehicleTracking/MapTileDownload/OutPut/161020230531_L19/mark.png
+filename_map_coordinate	= D:/Dataset/VehicleTracking/MapTileDownload/OutPut/161020230531_L19/161020230531.txt
+
+
+
+# CStr filename_video				= "D:\\Dataset\\VehicleTracking\\resources\\videos_HD\\DJI_0002.MOV";
+# CStr SRTFilename = "D:\\Dataset\\VehicleTracking\\resources\\videos_HD\\DJI_0002.SRT";
+# CStr mapFilename					= "D:\\Dataset\\VehicleTracking\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.png";
+# CStr mapMarkedFilename = "D:\\Dataset\\VehicleTracking\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\mark_all_white.png";
+# CStr mapMarkedFilename = "D:\\Dataset\\VehicleTracking\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\mark.png";
+# CStr coordinateFilename		= "D:\\Dataset\\VehicleTracking\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.txt";
