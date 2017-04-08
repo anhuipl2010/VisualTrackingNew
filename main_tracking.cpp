@@ -157,51 +157,6 @@ cv::Vec2f convertDistIntoFrame(const cv::Vec2f &realVec, float high, float f)
 	return inFrameVec;
 }
 
-// 计算图像中心点到直线的距离，并根据阈值计算出遮挡的直线数目，当占据大部所给定的百分比时，判断为遮挡
-static bool checkOcclused(const cv::Point2f &center, const std::vector<cv::Vec4i> &lines, float distThreshold)
-{
-	int occlusedTotal = 0;
-	for (size_t i = 0; i < lines.size(); ++i) {
-		const cv::Vec4i &l = lines[i];
-		cv::Point pt1(l[0], l[1]);
-		cv::Point pt2(l[2], l[3]);
-
-		double dist = calcDist(center, pt1, pt2);
-		if (dist < distThreshold)
-			++occlusedTotal;
-	}
-	return occlusedTotal > lines.size() * 0.67;
-}
-// 获取与运动方向平行或者垂直的线段
-static void GetOrientationLines(const std::vector<cv::Vec4i> &lines, std::vector<cv::Vec4i> lines_parallel, std::vector<cv::Vec4i> &lines_vertical, const cv::Point2f &velocity, const cv::Rect &rect) {
-	for (size_t i = 0; i < lines.size(); ++i) {
-		const cv::Vec4i l = lines[i];
-		cv::Point pt1(l[0], l[1]);
-		cv::Point pt2(l[2], l[3]);
-		float angle = calcAngle(velocity, (pt1 - pt2));
-		float len = calcDist(pt1, pt2);
-		angle = fabs(angle);
-		angle *= 180 / CV_PI;
-		const float threshold = 0.67f;
-		const int angel_parallel_threshold_max = 45;
-		const int angel_parallel_threshold_min = 135;
-		const int angel_vertical_threshold_min = 70;
-		const int angel_vertical_threshold_max = 110;
-
-		// 聚类特定角度的直线
-		if (((angle < angel_parallel_threshold_max) || (angle > angel_parallel_threshold_min))
-			&& len > threshold * rect.width) {
-			lines_parallel.push_back(l);
-		} else if ((angle > angel_vertical_threshold_min) && (angle < angel_vertical_threshold_max)
-			&& len > threshold * rect.height) {
-			lines_vertical.push_back(l);
-		} else {
-			continue;
-		}
-	}
-}
-
-
 // 初始目标选框
 static cv::Rect initRect;
 // 视频帧
@@ -237,21 +192,6 @@ static void onMouse(int event, int x, int y, int flag, void *)
 		std::cout << "Closed." << std::endl;
 		exit(0);
 	}
-}
-
-bool DetectInKalmanOcclusion(double cur_green_ratio, double cur_line_dist) {
-	static std::queue<double> vec_green_ratio;
-	static std::queue<double> vec_line_dist;
-
-	const std::queue<double>::size_type kMaxFrameNumReservedGreen = 1;
-	const std::queue<double>::size_type kMaxFrameNumReservedLine = 1;
-	vec_green_ratio.push(cur_green_ratio);
-	if (vec_green_ratio.size() > kMaxFrameNumReservedGreen) vec_green_ratio.pop();
-	if (vec_line_dist.size() > kMaxFrameNumReservedLine) vec_line_dist.pop();
-	
-	bool occlusion = false;
-	if (vec_green_ratio.back() > 0.67 || vec_line_dist.back() > 10000) occlusion = true;
-	return occlusion;
 }
 
 struct File_not_found {
@@ -310,9 +250,11 @@ void KCFDetect(KCFTracker &tracker, const cv::Mat &frame, const cv::Rect &rect, 
 	ret_rect = rect;
 	for (int r = -1; r <= 1; ++r) {
 		for (int c = -1; c <= 1; ++c) {
-			if (r * c == 0 || (r == 0 && c == 0)) continue;	// 只采样五个点
+			//if (r * c == 0 || (r == 0 && c == 0)) continue;	// 只采样五个点
+			//if (r * c != 0) continue;
 			//if (r * c != 0) continue;
 			float max_response = 0.0f;
+			//tracker.setROI(x + r * width, y + c * height, frame);
 			tracker.setROI(x + r * width / 2, y + c * height / 2, frame);
 			cv::Rect rect_temp = tracker.updateWithoutTrain(frame, max_response);
 			if (max_response > max_max_response) {
@@ -346,7 +288,7 @@ int main(int argc, char *argv[])
 	cv::VideoCapture cap(filename_video);
 	WRJ_ASSERT(cap.isOpened());
 
-	int frame_index = 1500;							// 初始第一帧位置
+	int frame_index = 1766;							// 初始第一帧位置
 	cap.set(CV_CAP_PROP_POS_FRAMES, frame_index - 1);
 	
 	cv::namedWindow(frameWinName);
@@ -411,8 +353,6 @@ int main(int argc, char *argv[])
 	const float kThresholdTrackerRetrackingDitu = 0.23f;
 	const float kThresholdTrackerRetrackingKalman = 0.4f;
 
-	wrj::Timer timer_loop("main_loop");
-
 	cv::Rect rect_tracker_cur_frame_detect;	// 当前帧利用tracker进行检测出来的结果
 	cv::Rect rect_tracker_last_frame_detect;	//	上一帧用tracker检测的结果
 
@@ -422,6 +362,8 @@ int main(int argc, char *argv[])
 	cv::Scalar color = WHITE;	// 当前点在地图中的区域，目前仅仅标记了4个区域
 
 	cv::Rect temp_rect;
+
+	wrj::Timer timer_main_loop("main_loop");
 
 	for (;;) {
 		/// Read frame from video
@@ -463,6 +405,8 @@ int main(int argc, char *argv[])
 			continue;
 			//updateKCF(tracker, 180, reserveFrame, CV_PI, reserveSearchROIRect, reserveROIRect);
 		}
+		timer_main_loop.Reset();
+		timer_main_loop.Start();
 		/// 已经初始化，开始跟踪
 			/*判断逻辑
 			是否需要再检测
@@ -670,6 +614,8 @@ int main(int argc, char *argv[])
 		if (KFInited)
 			cv::rectangle(frame, cv::Rect(KFPt.x, KFPt.y, rect_tracker_cur_frame_detect.width, rect_tracker_cur_frame_detect.height), YELLOW);
 		cv::imshow(frameWinName, frame);
+
+		timer_main_loop.StopAndReport();
 
 		char ch = cv::waitKey(5);
 		if (toupper(ch) == 'Q')

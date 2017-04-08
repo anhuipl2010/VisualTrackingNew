@@ -52,20 +52,19 @@ inline void my_assert(const char *expr, const char *function, const char *file, 
 
 // Implementation of calculation of time consumed. And it print the res.
 #ifdef _WIN64
-#define WRJ_TIME
-//#define WRJ_TIME(func)\
-//	do {\
-//    LARGE_INTEGER time_begin;\
-//    LARGE_INTEGER time_end;\
-//	  LARGE_INTEGER time_freq;\
-//	  QueryPerformanceFrequency(&time_freq);\
-//		double freq = (double)time_freq.QuadPart;\
-//		QueryPerformanceCounter(&time_begin);\
-//		func;\
-//		QueryPerformanceCounter(&time_end);\
-//		double time_used = (time_end.QuadPart - time_begin.QuadPart) * 1000.0 / freq;\
-//		printf("TIME: %s, %6.3fms\n", #func, time_used);\
-//	} while (0)
+#define WRJ_TIME(func)\
+	do {\
+    LARGE_INTEGER time_begin;\
+    LARGE_INTEGER time_end;\
+	  LARGE_INTEGER time_freq;\
+	  QueryPerformanceFrequency(&time_freq);\
+		double freq = (double)time_freq.QuadPart;\
+		QueryPerformanceCounter(&time_begin);\
+		func;\
+		QueryPerformanceCounter(&time_end);\
+		double time_used = (time_end.QuadPart - time_begin.QuadPart) * 1000.0 / freq;\
+		printf("TIME: %s, %6.3fms\n", #func, time_used);\
+	} while (0)
 #else
 #define WRJ_TIMER(func) \
 	do {\
