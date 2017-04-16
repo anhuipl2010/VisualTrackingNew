@@ -251,8 +251,9 @@ void KCFDetect(KCFTracker &tracker, const cv::Mat &frame, const cv::Rect &rect, 
 	for (int r = -1; r <= 1; ++r) {
 		for (int c = -1; c <= 1; ++c) {
 			//if (r * c == 0 || (r == 0 && c == 0)) continue;	// 只采样五个点
-			//if (r * c != 0) continue;
-			//if (r * c != 0) continue;
+			if (r * c != 0) continue;
+			if (r * c != 0) continue;
+			if (r * c != 0) continue;
 			float max_response = 0.0f;
 			//tracker.setROI(x + r * width, y + c * height, frame);
 			tracker.setROI(x + r * width / 2, y + c * height / 2, frame);
@@ -284,12 +285,21 @@ int main(int argc, char *argv[])
 	filename_map_marked = config.Read("filename_map_marked", filename_map_marked);
 	filename_map_coordinate = config.Read("filename_map_coordinate", filename_map_coordinate);
 
+
+	std::string filename_res_position("res_position.txt");
+	std::string filename_res_response("res_response.txt");
+	FILE *fout = fopen(filename_res_position.c_str(), "w");
+	if (fout == NULL) throw File_not_found(filename_res_position);
+	FILE *fout_res_response = fopen(filename_res_response.c_str(), "w");
+	if (fout_res_response == NULL) throw File_not_found(filename_res_response);
 	// 初始化视频
 	cv::VideoCapture cap(filename_video);
 	WRJ_ASSERT(cap.isOpened());
-
+	
+	//int frame_index = 6569;
+	//int frame_index = 3041;	// 2						// 初始第一帧位置
 	int frame_index = 1766;							// 初始第一帧位置
-	cap.set(CV_CAP_PROP_POS_FRAMES, frame_index - 1);
+	cap.set(CV_CAP_PROP_POS_FRAMES, frame_index);
 	
 	cv::namedWindow(frameWinName);
 	cv::moveWindow(frameWinName, 0, 0);
@@ -297,7 +307,7 @@ int main(int argc, char *argv[])
 
 	// 初始化KCF
 	const double kPaddingTracker = 2.5;
-	KCFTracker tracker(true, true, false, true, kPaddingTracker, true);
+	KCFTracker tracker(true, false, false, false, kPaddingTracker, true);
 	//tracker.interp_factor = 0.02;
 
 	cv::Rect reserveRect;	// 保存用于旋转的跟踪结果，一般是当前帧的前3帧左右，用于遮挡时KCF的更新（直接将目标旋转）
@@ -349,9 +359,20 @@ int main(int argc, char *argv[])
 		STATE_FAIL = 2
 	};
 
+	// 树木
 	const float kThresholdTrackerStopTracking = 0.35f;
-	const float kThresholdTrackerRetrackingDitu = 0.23f;
+	const float kThresholdTrackerRetrackingDitu = 0.4f;
 	const float kThresholdTrackerRetrackingKalman = 0.4f;
+
+	// 直线立交桥，在hog特征下，这个不行，阈值要求比较高才行
+	//const float kThresholdTrackerStopTracking = 0.3f;
+	//const float kThresholdTrackerRetrackingDitu = 0.23f;
+	//const float kThresholdTrackerRetrackingKalman = 0.3f;
+
+	// ORI KCF
+	//const float kThresholdTrackerStopTracking = 0.0f;
+	//const float kThresholdTrackerRetrackingDitu = 0.0f;
+	//const float kThresholdTrackerRetrackingKalman = 0.0f;
 
 	cv::Rect rect_tracker_cur_frame_detect;	// 当前帧利用tracker进行检测出来的结果
 	cv::Rect rect_tracker_last_frame_detect;	//	上一帧用tracker检测的结果
@@ -364,8 +385,11 @@ int main(int argc, char *argv[])
 	cv::Rect temp_rect;
 
 	wrj::Timer timer_main_loop("main_loop");
+	double res_response = 0;	// 用于记录每一帧的response，最后要写文件
 
+	int cnt = 0;
 	for (;;) {
+		++cnt;
 		/// Read frame from video
 		WRJ_TIME(cap >> frame);
 		++frame_index;
@@ -377,12 +401,16 @@ int main(int argc, char *argv[])
 		if (readyInitKCF) {
 			cv::imshow(frameWinName, frame);
 			cv::waitKey(0);
-			//cv::Point left_top(1340, 440);
-			//cv::Point left_bottom(1340, 440 + 50);
-			//cv::Point right_bottom(1340 + 50, 440 + 50);
-			//cv::Point right_top(1340 + 50, 440);
-			//initRect = cv::Rect(left_top, right_bottom);
-			//readyInitKCF = false;
+			/*cv::Point left_top(28, 758);
+			cv::Point left_bottom(1340, 440 + 50);
+			cv::Point right_bottom(1340 + 50, 440 + 50);
+			cv::Point right_top(1340 + 50, 440);
+			*/
+			//initRect = cv::Rect(748 - 1, 36 - 1, 36, 80);		// 1
+			//initRect = cv::Rect(465 - 1, 248 - 1, 36, 66);	// 2
+			initRect = cv::Rect(7 - 1, 593 - 1, 53, 34);		// 3
+			//initRect = cv::Rect(1340 - 1, 440 - 1, 50, 50);	// 4
+			readyInitKCF = false;
 
 			tracker.init(initRect, frame);
 
@@ -454,7 +482,8 @@ int main(int argc, char *argv[])
 
 					float tracker_response_temp = 0.0f;
 					float target_response_temp = 0.0f;
-					cv::Rect tracker_rect_temp = tracker.updateWithoutTrain(frame, tracker_response_temp);
+					cv::Rect tracker_rect_temp;
+					WRJ_TIME(tracker_rect_temp = tracker.updateWithoutTrain(frame, tracker_response_temp));
 					//cv::Rect target_rect_temp = tracker_target.updateWithoutTrain(frame, target_response_temp);
 
 					if (tracker_response_temp > kThresholdTrackerRetrackingDitu/* && target_response_temp > kThresholdTargetRetracking*/) {
@@ -467,6 +496,7 @@ int main(int argc, char *argv[])
 					//target_max_response_temp = max(target_max_response_temp, target_response_temp);
 				}
 			}
+			res_response = tracker_max_response_temp;
 			// 打印最大检测值，用于调试阈值
 			fprintf(stdout, "State: tracker_max_response_temp: %f, target_max_response_temp: %f\n", tracker_max_response_temp, target_max_response_temp);
 
@@ -491,10 +521,11 @@ int main(int argc, char *argv[])
 			
 			float max_max_response = 0.0f;
 			cv::Rect max_max_response_rect;
-			KCFDetect(tracker, frame, rect_tracker_cur_frame_detect, max_max_response, max_max_response_rect);
+			WRJ_TIME(KCFDetect(tracker, frame, rect_tracker_cur_frame_detect, max_max_response, max_max_response_rect));
 			fprintf(stdout, "max_max_response_rect: %f\n", max_max_response);
+			res_response = max_max_response;
 
-			if (max_max_response >= kThresholdTrackerStopTracking) {
+			if (max_max_response >= kThresholdTrackerRetrackingKalman) {
 				tracker.setROI(max_max_response_rect.x, max_max_response_rect.y, frame);
 				tracker.updateTrain(frame);
 				tracker.updateTrain(frame);
@@ -512,9 +543,9 @@ int main(int argc, char *argv[])
 			// 上一帧是无遮挡状态，本帧正常更新（原来的思路是，在本帧内检测，检测遮挡后不更新，但现在逻辑是放到后面去）
 			WRJ_TIME(rect_tracker_cur_frame_detect = tracker.updateWithoutTrain(frame, tracker_max_response));	// 仅跟踪，不训练
 			fprintf(stdout, "max_response: %f\n", tracker_max_response);
-
+			res_response = tracker_max_response;
 			if (tracker_max_response >= kThresholdTrackerRetrackingKalman) {
-				tracker.updateTrain(frame);
+				WRJ_TIME(tracker.updateTrain(frame));
 			} else  if (tracker_max_response < kThresholdTrackerStopTracking) {
 				in_redetect_Kalman_state = true;
 			} else {
@@ -531,7 +562,7 @@ int main(int argc, char *argv[])
 			cv::Point2f V(dx, dy);
 
 			// 用于调试
-			KFPt = KF.OtherPredictAndCorrect(rect_tracker_last_frame_detect.x * 1.0f, rect_tracker_last_frame_detect.y * 1.0f);
+			WRJ_TIME(KFPt = KF.OtherPredictAndCorrect(rect_tracker_last_frame_detect.x * 1.0f, rect_tracker_last_frame_detect.y * 1.0f));
 
 			if (color != WHITE) {	// 白色是默认颜色
 				if (color == RED) {
@@ -605,11 +636,21 @@ int main(int argc, char *argv[])
 		//////////////////////////////////////////////////////////////////////////
 
 		//std::cout << "END " << curRect << std::endl;
+		{
+			char buf[256];
+			fprintf(fout, "%d %d %d %d\n", rect_tracker_cur_frame_detect.x, rect_tracker_cur_frame_detect.y, rect_tracker_cur_frame_detect.width, rect_tracker_cur_frame_detect.height);
+			fflush(fout);
+
+			fprintf(fout_res_response, "%f\n", res_response);
+			fflush(fout);
+		}
 		rect_tracker_last_frame_detect = rect_tracker_cur_frame_detect;
 		cv::rectangle(frame, rect_tracker_cur_frame_detect, GREEN);
 		cv::rectangle(frame, tracker._extracted_roi, PINK);
 		cv::rectangle(frame, temp_rect, BLUE);
 		//cv::rectangle(frame, rect_, PINK);
+
+		cv::putText(frame, std::to_string(cnt), cv::Point(30, 30), cv::FONT_HERSHEY_COMPLEX, 1, RED);
 
 		if (KFInited)
 			cv::rectangle(frame, cv::Rect(KFPt.x, KFPt.y, rect_tracker_cur_frame_detect.width, rect_tracker_cur_frame_detect.height), YELLOW);
@@ -628,6 +669,7 @@ int main(int argc, char *argv[])
 		//writer << frame;
 	}
 	//writer.release();
-
+	fclose(fout);
+	fclose(fout_res_response);
 	return 0;
 }

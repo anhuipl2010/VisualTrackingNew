@@ -136,8 +136,8 @@ KCFTracker::KCFTracker(bool hog, bool fixed_window, bool multiscale, bool lab, f
 
 
 	if (multiscale) { // multiscale
-		//template_size = 96;
-		template_size = 100;
+		template_size = 96;
+		//template_size = 100;
 		scale_step = 1.1;
 		scale_weight = 0.99;
 		if (!fixed_window) {
@@ -145,8 +145,8 @@ KCFTracker::KCFTracker(bool hog, bool fixed_window, bool multiscale, bool lab, f
 			fixed_window = true;
 		}
 	} else if (fixed_window) {  // fit correction without multiscale
-		//template_size = 96;
-		template_size = 100;
+		template_size = 96;
+		//template_size = 100;
 		scale_step = 1;
 	} else {
 		template_size = 1;
